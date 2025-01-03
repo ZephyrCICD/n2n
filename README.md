@@ -3,6 +3,9 @@
 
 # n2n
 
+对于ARM架构的MAC, 请切换至3.0-stable-m1mac分支进行编译安装.
+
+
 n2n is a light VPN software which makes it easy to create virtual networks bypassing intermediate firewalls.
 
 In order to start using n2n, two elements are required:
