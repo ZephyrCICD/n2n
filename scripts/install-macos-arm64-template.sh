@@ -5,7 +5,6 @@ DEFAULT_PACKAGE_URL="@N2N_PACKAGE_URL@"
 UNCONFIGURED_PACKAGE_URL="@""N2N_PACKAGE_URL@"
 PACKAGE_URL="${N2N_MACOS_ARM64_URL:-$DEFAULT_PACKAGE_URL}"
 PREFIX="${N2N_INSTALL_PREFIX:-/usr/local}"
-TUNNELBLICK_DMG_URL="${N2N_TUNNELBLICK_DMG_URL:-https://tunnelblick.net/release/Latest_Tunnelblick_Stable.dmg}"
 
 if [ "$(uname -s)" != "Darwin" ]; then
   echo "This installer is only for macOS." >&2
@@ -45,34 +44,6 @@ tap_is_ready() {
   [ -c /dev/tap0 ]
 }
 
-install_tunnelblick_from_dmg() {
-  for cmd in hdiutil ditto; do
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-      echo "Missing required command: $cmd" >&2
-      exit 1
-    fi
-  done
-
-  dmg="$tmpdir/Tunnelblick.dmg"
-  mountpoint="$tmpdir/Tunnelblick"
-
-  echo "Downloading Tunnelblick for TAP support..."
-  curl -fL "$TUNNELBLICK_DMG_URL" -o "$dmg"
-
-  mkdir -p "$mountpoint"
-  hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mountpoint" >/dev/null
-
-  app_path="$(find "$mountpoint" -maxdepth 2 -name 'Tunnelblick.app' -type d | head -n 1)"
-  if [ -z "$app_path" ]; then
-    echo "Tunnelblick.app was not found in the downloaded disk image." >&2
-    exit 1
-  fi
-
-  $SUDO rm -rf /Applications/Tunnelblick.app
-  $SUDO ditto "$app_path" /Applications/Tunnelblick.app
-  hdiutil detach "$mountpoint" >/dev/null
-}
-
 ensure_tap_support() {
   if tap_is_ready; then
     echo "TAP support is already available."
@@ -84,26 +55,35 @@ ensure_tap_support() {
     return
   fi
 
-  echo "TAP support was not found. Installing Tunnelblick to provide the TAP system extension..."
-
-  if [ ! -d /Applications/Tunnelblick.app ]; then
-    if command -v brew >/dev/null 2>&1; then
-      brew install --cask tunnelblick || install_tunnelblick_from_dmg
-    else
-      install_tunnelblick_from_dmg
-    fi
+  driver_root="$root/drivers/tunnelblick"
+  if [ ! -d "$driver_root/Extensions/tap.kext" ] || [ ! -d "$driver_root/Extensions/tun.kext" ]; then
+    echo "TAP support was not found, and this package does not include TAP/TUN kexts." >&2
+    exit 1
   fi
 
-  echo "Opening Tunnelblick so macOS can finish TAP system extension approval."
-  open -a Tunnelblick || open /Applications/Tunnelblick.app || true
+  echo "TAP support was not found. Installing bundled TAP/TUN system extensions..."
+  $SUDO rm -rf /Library/Extensions/tap.kext /Library/Extensions/tun.kext
+  $SUDO cp -R "$driver_root/Extensions/tap.kext" /Library/Extensions/tap.kext
+  $SUDO cp -R "$driver_root/Extensions/tun.kext" /Library/Extensions/tun.kext
+  $SUDO chown -R root:wheel /Library/Extensions/tap.kext /Library/Extensions/tun.kext
+  $SUDO chmod -R go-w /Library/Extensions/tap.kext /Library/Extensions/tun.kext
+
+  $SUDO install -m 644 "$driver_root/LaunchDaemons/net.tunnelblick.tap.plist" /Library/LaunchDaemons/net.tunnelblick.tap.plist
+  $SUDO install -m 644 "$driver_root/LaunchDaemons/net.tunnelblick.tun.plist" /Library/LaunchDaemons/net.tunnelblick.tun.plist
+  $SUDO chown root:wheel /Library/LaunchDaemons/net.tunnelblick.tap.plist /Library/LaunchDaemons/net.tunnelblick.tun.plist
+
+  $SUDO /sbin/kextload /Library/Extensions/tap.kext || true
+  $SUDO /sbin/kextload /Library/Extensions/tun.kext || true
+  $SUDO launchctl load -w /Library/LaunchDaemons/net.tunnelblick.tap.plist 2>/dev/null || true
+  $SUDO launchctl load -w /Library/LaunchDaemons/net.tunnelblick.tun.plist 2>/dev/null || true
 
   if tap_is_ready; then
     echo "TAP support is ready."
   else
     echo
     echo "One more macOS approval step may be required:"
-    echo "1. In Tunnelblick, open Utilities and install Tun and Tap system extensions."
-    echo "2. In System Settings > Privacy & Security, allow the Tunnelblick system extension if macOS asks."
+    echo "1. Open System Settings > Privacy & Security."
+    echo "2. Allow the Tunnelblick TAP/TUN system extension if macOS asks."
     echo "3. Restart the Mac if macOS asks, then run your n2n edge command again."
   fi
 }

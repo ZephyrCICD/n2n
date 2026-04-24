@@ -26,9 +26,9 @@ The installer copies `edge` and `supernode` to `/usr/local/sbin`, creates conven
 curl -fsSL https://example.com/n2n/install-n2n-macos-arm64.sh | N2N_INSTALL_PREFIX="$HOME/.local" bash
 ```
 
-The installer also checks for `/dev/tap0`. If TAP support is missing, it installs and opens Tunnelblick so macOS can finish installing the TAP system extension. On Apple Silicon macOS, the final system extension approval cannot be fully automated; the user may need to approve Tunnelblick in System Settings and restart.
+The release package includes Tunnelblick's notarized TAP/TUN kexts, but it does not install the Tunnelblick app. The installer checks for `/dev/tap0`; if TAP support is missing, it installs the bundled `tap.kext` and `tun.kext` plus launch daemons. On Apple Silicon macOS, the final system extension approval cannot be fully automated; the user may need to approve the Tunnelblick system extension in System Settings and restart.
 
-To skip the Tunnelblick/TAP setup:
+To skip TAP/TUN kext setup:
 
 ```bash
 curl -fsSL https://example.com/n2n/install-n2n-macos-arm64.sh | N2N_SKIP_TAP_DRIVER=1 bash

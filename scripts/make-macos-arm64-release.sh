@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/make-macos-arm64-release.sh --package-url URL [--build-dir DIR] [--dist-dir DIR]
+  scripts/make-macos-arm64-release.sh --package-url URL [--build-dir DIR] [--dist-dir DIR] [--skip-tap-driver]
 
 Example:
   scripts/make-macos-arm64-release.sh \
@@ -20,6 +20,9 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 build_dir="$repo_root/build"
 dist_dir="$repo_root/dist/macos-arm64"
 package_url=""
+tunnelblick_dmg_url="${N2N_TUNNELBLICK_DMG_URL:-https://tunnelblick.net/iprelease/Tunnelblick_8.0.1_build_6301.dmg}"
+tunnelblick_dmg_sha256="${N2N_TUNNELBLICK_DMG_SHA256:-5357625ecaa01fb07e0ddffbca93623e1f62314e71132a9c2f35fcbb090a9adc}"
+include_tap_driver=1
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -34,6 +37,10 @@ while [ "$#" -gt 0 ]; do
     --dist-dir)
       dist_dir="$(mkdir -p "$2" && cd "$2" && pwd)"
       shift 2
+      ;;
+    --skip-tap-driver)
+      include_tap_driver=0
+      shift
       ;;
     -h|--help)
       usage
@@ -64,6 +71,92 @@ for cmd in cmake file gzip install sed tar; do
     exit 1
   fi
 done
+
+include_tunnelblick_tap_driver() {
+  for cmd in curl hdiutil shasum; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      echo "Missing required command: $cmd" >&2
+      exit 1
+    fi
+  done
+
+  driver_tmp="$dist_dir/.tunnelblick-driver"
+  dmg="$driver_tmp/Tunnelblick.dmg"
+  mountpoint="$driver_tmp/mount"
+  mkdir -p "$driver_tmp" "$mountpoint"
+
+  echo "Downloading Tunnelblick TAP/TUN kexts..."
+  curl -fL "$tunnelblick_dmg_url" -o "$dmg"
+  actual_sha256="$(shasum -a 256 "$dmg" | awk '{print $1}')"
+  if [ "$actual_sha256" != "$tunnelblick_dmg_sha256" ]; then
+    echo "Tunnelblick disk image SHA256 mismatch." >&2
+    echo "Expected: $tunnelblick_dmg_sha256" >&2
+    echo "Actual:   $actual_sha256" >&2
+    exit 1
+  fi
+
+  hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mountpoint" >/dev/null
+
+  tap_kext="$(find "$mountpoint" -path '*/tap-notarized.kext' -type d | head -n 1)"
+  tun_kext="$(find "$mountpoint" -path '*/tun-notarized.kext' -type d | head -n 1)"
+
+  if [ -z "$tap_kext" ] || [ -z "$tun_kext" ]; then
+    hdiutil detach "$mountpoint" >/dev/null || true
+    echo "Tunnelblick TAP/TUN kexts were not found in the downloaded disk image." >&2
+    exit 1
+  fi
+
+  mkdir -p "$stage/drivers/tunnelblick/Extensions" "$stage/drivers/tunnelblick/LaunchDaemons"
+  cp -R "$tap_kext" "$stage/drivers/tunnelblick/Extensions/tap.kext"
+  cp -R "$tun_kext" "$stage/drivers/tunnelblick/Extensions/tun.kext"
+
+  cat > "$stage/drivers/tunnelblick/LaunchDaemons/net.tunnelblick.tap.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>KeepAlive</key>
+  <false/>
+  <key>Label</key>
+  <string>net.tunnelblick.tap</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/sbin/kextload</string>
+    <string>/Library/Extensions/tap.kext</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>UserName</key>
+  <string>root</string>
+</dict>
+</plist>
+PLIST
+
+  cat > "$stage/drivers/tunnelblick/LaunchDaemons/net.tunnelblick.tun.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>KeepAlive</key>
+  <false/>
+  <key>Label</key>
+  <string>net.tunnelblick.tun</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/sbin/kextload</string>
+    <string>/Library/Extensions/tun.kext</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>UserName</key>
+  <string>root</string>
+</dict>
+</plist>
+PLIST
+
+  hdiutil detach "$mountpoint" >/dev/null
+  rm -rf "$driver_tmp"
+}
 
 mkdir -p "$build_dir"
 if [ -f "$build_dir/CMakeCache.txt" ] && ! grep -qx "CMAKE_HOME_DIRECTORY:INTERNAL=$repo_root" "$build_dir/CMakeCache.txt"; then
@@ -112,6 +205,10 @@ Installed commands:
 
 edge usually requires sudo because it creates a virtual network interface.
 README
+
+if [ "$include_tap_driver" = "1" ]; then
+  include_tunnelblick_tap_driver
+fi
 
 (cd "$dist_dir" && tar -czf n2n-macos-arm64.tar.gz n2n-macos-arm64)
 
