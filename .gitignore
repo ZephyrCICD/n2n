@@ -1,6 +1,7 @@
 *.o
 *.a
 *.gz
+.DS_Store
 configure
 configure.ac
 config.*
@@ -16,6 +17,8 @@ tools/n2n-benchmark
 tools/n2n-decode
 tools/n2n-keygen
 build
+n2n.app
+dist/
 .idea
 cmake-build-default
 packages/debian/debian/changelog

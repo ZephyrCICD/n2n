@@ -1,0 +1,55 @@
+---
+name: macOS arm64 Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish Apple Silicon package
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show runner architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          uname -a
+          uname -m
+
+      - name: Build release package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_url="${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/n2n-macos-arm64.tar.gz"
+          scripts/make-macos-arm64-release.sh --package-url "$package_url"
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.ref_name }}"
+          assets=(
+            "dist/macos-arm64/n2n-macos-arm64.tar.gz"
+            "dist/macos-arm64/install-n2n-macos-arm64.sh"
+          )
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" "${assets[@]}" \
+              --title "$tag" \
+              --notes "Apple Silicon macOS n2n package."
+          fi
