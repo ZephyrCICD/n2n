@@ -72,7 +72,9 @@ if [ -f "$build_dir/CMakeCache.txt" ] && ! grep -qx "CMAKE_HOME_DIRECTORY:INTERN
   mkdir -p "$build_dir"
 fi
 
-cmake -S "$repo_root" -B "$build_dir" -DCMAKE_BUILD_TYPE=Release
+cmake -S "$repo_root" -B "$build_dir" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 cmake --build "$build_dir" --target edge supernode n2n-benchmark
 
 for binary in edge supernode n2n-benchmark; do
