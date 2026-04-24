@@ -13,6 +13,7 @@ Example:
 Outputs:
   dist/macos-arm64/n2n-macos-arm64.tar.gz
   dist/macos-arm64/install-n2n-macos-arm64.sh
+  dist/macos-arm64/uninstall-n2n-macos-arm64.sh
 USAGE
 }
 
@@ -218,9 +219,13 @@ sed "s#@N2N_PACKAGE_URL@#$escaped_package_url#g" \
   > "$dist_dir/install-n2n-macos-arm64.sh"
 chmod +x "$dist_dir/install-n2n-macos-arm64.sh"
 
+cp "$repo_root/scripts/uninstall-macos-arm64-template.sh" "$dist_dir/uninstall-n2n-macos-arm64.sh"
+chmod +x "$dist_dir/uninstall-n2n-macos-arm64.sh"
+
 echo "Release files are ready:"
 echo "  $dist_dir/n2n-macos-arm64.tar.gz"
 echo "  $dist_dir/install-n2n-macos-arm64.sh"
+echo "  $dist_dir/uninstall-n2n-macos-arm64.sh"
 echo
-echo "Upload both files, then share this command:"
+echo "Upload the release files, then share this command:"
 echo "  curl -fsSL ${package_url%/*}/install-n2n-macos-arm64.sh | bash"

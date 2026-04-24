@@ -4,6 +4,7 @@ This repository can package the local macOS arm64 build into two files that are 
 
 - `n2n-macos-arm64.tar.gz`
 - `install-n2n-macos-arm64.sh`
+- `uninstall-n2n-macos-arm64.sh`
 
 Build the package on an Apple Silicon Mac:
 
@@ -55,4 +56,16 @@ After the workflow finishes, give users the generated installer command:
 
 ```bash
 curl -fsSL https://github.com/zephyrcicd/n2n/releases/download/v3.0.0-m1.1/install-n2n-macos-arm64.sh | bash
+```
+
+The generated uninstaller command is:
+
+```bash
+curl -fsSL https://github.com/zephyrcicd/n2n/releases/download/v3.0.0-m1.1/uninstall-n2n-macos-arm64.sh | bash
+```
+
+To uninstall n2n while keeping TAP/TUN kexts:
+
+```bash
+curl -fsSL https://github.com/zephyrcicd/n2n/releases/download/v3.0.0-m1.1/uninstall-n2n-macos-arm64.sh | N2N_KEEP_TAP_DRIVER=1 bash
 ```

@@ -44,6 +44,7 @@ jobs:
           assets=(
             "dist/macos-arm64/n2n-macos-arm64.tar.gz"
             "dist/macos-arm64/install-n2n-macos-arm64.sh"
+            "dist/macos-arm64/uninstall-n2n-macos-arm64.sh"
           )
 
           if gh release view "$tag" >/dev/null 2>&1; then
