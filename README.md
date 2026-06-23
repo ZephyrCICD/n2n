@@ -9,7 +9,9 @@ For Apple Silicon / M-series Macs, you can install the pre-built macOS arm64 rel
 curl -fsSL https://github.com/zephyrcicd/n2n/releases/download/v3.0.0-m1.5/install-n2n-macos-arm64.sh | bash
 ```
 
-The installer installs n2n and, when TAP/TUN support is missing, installs the bundled driver from the release package. After the first driver installation, macOS may require manual approval: open `System Settings` -> `Privacy & Security`, allow the system software from Tunnelblick, and restart if macOS asks you to.
+The installer installs n2n and, when TAP/TUN support is missing, installs the bundled driver from the release package. After the first driver installation, macOS may require manual approval: open `System Settings` -> `Privacy & Security`, click `Details...` in the `Security` section, enable `Jonathan Bullard` (Tunnelblick's TAP/TUN kext signature), and restart if macOS asks you to.
+
+If macOS says `net.tunnelblick.tap` or `net.tunnelblick.tun` is `not approved to load`, run `sudo kmutil load -p /Library/Extensions/tap.kext` to trigger the approval prompt, then approve `Jonathan Bullard` in System Settings. On Apple Silicon Macs where the approval UI does not appear, boot into macOS Recovery, set the startup disk to `Reduced Security`, enable user management of kernel extensions from identified developers, restart, and approve the kexts from System Settings. See [Apple Silicon macOS Release](doc/MacOSArm64Release.md) for the full flow.
 
 
 n2n is a light VPN software which makes it easy to create virtual networks bypassing intermediate firewalls.

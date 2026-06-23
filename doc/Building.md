@@ -7,7 +7,14 @@ brew tap homebrew/cask
 brew cask install tuntap
 ```
 
-If you are on a modern version of macOS (i.e. Catalina), the commands above will ask you to enable the TUN/TAP kernel extension in System Preferences → Security & Privacy → General.
+If you are on a modern version of macOS (i.e. Catalina), the commands above will ask you to enable the TUN/TAP kernel extension in System Preferences -> Security & Privacy -> General.
+
+On Apple Silicon macOS, TAP/TUN approval may require additional steps that cannot be scripted:
+
+1. Boot into macOS Recovery and set the startup disk to `Reduced Security` if macOS refuses to load third-party kernel extensions.
+2. Run `sudo kmutil load -p /Library/Extensions/tap.kext` to trigger the approval prompt.
+3. Open `System Settings` -> `Privacy & Security` -> `Security`, click `Details...`, and enable `Jonathan Bullard` for Tunnelblick's `net.tunnelblick.tap` and `net.tunnelblick.tun` kexts.
+4. Restart, then verify with `sh -c 'ls -l /dev/tap* 2>/dev/null || true'` and `kextstat | grep -i tunnelblick`.
 
 For more information refer to vendor documentation or the [Apple Technical Note](https://developer.apple.com/library/content/technotes/tn2459/_index.html).
 

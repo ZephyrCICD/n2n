@@ -44,6 +44,38 @@ tap_is_ready() {
   [ -c /dev/tap0 ]
 }
 
+print_tap_approval_instructions() {
+  cat <<'INSTRUCTIONS'
+
+TAP/TUN was installed, but macOS has not made /dev/tap0 available yet.
+On Apple Silicon Macs this last approval step cannot be automated by this installer.
+
+If macOS reports "not approved to load" for net.tunnelblick.tap or net.tunnelblick.tun:
+
+1. Open System Settings > Privacy & Security.
+2. In the Security section, click Details next to "Some system software requires your attention".
+3. Enable "Jonathan Bullard". This is the developer signature for Tunnelblick's TAP/TUN kexts.
+4. Click OK and enter an administrator password if prompted.
+5. Restart the Mac.
+
+If the Details/Allow control does not appear, trigger the approval prompt again:
+
+  sudo kmutil load -p /Library/Extensions/tap.kext
+
+Then return to System Settings > Privacy & Security immediately.
+
+On Apple Silicon, if macOS still refuses to show the approval UI, boot into macOS Recovery,
+open Startup Security Utility, choose Reduced Security, and enable user management of
+kernel extensions from identified developers. Restart macOS and repeat the approval steps above.
+
+After restart, verify TAP support with:
+
+  sh -c 'ls -l /dev/tap* 2>/dev/null || true'
+  kextstat | grep -i tunnelblick
+
+INSTRUCTIONS
+}
+
 ensure_tap_support() {
   if tap_is_ready; then
     echo "TAP support is already available."
@@ -72,19 +104,30 @@ ensure_tap_support() {
   $SUDO install -m 644 "$driver_root/LaunchDaemons/net.tunnelblick.tun.plist" /Library/LaunchDaemons/net.tunnelblick.tun.plist
   $SUDO chown root:wheel /Library/LaunchDaemons/net.tunnelblick.tap.plist /Library/LaunchDaemons/net.tunnelblick.tun.plist
 
-  $SUDO /sbin/kextload /Library/Extensions/tap.kext || true
-  $SUDO /sbin/kextload /Library/Extensions/tun.kext || true
+  kext_log="$tmpdir/tap-kext-approval.log"
+  : > "$kext_log"
+
+  if command -v kmutil >/dev/null 2>&1; then
+    $SUDO kmutil load -p /Library/Extensions/tap.kext >>"$kext_log" 2>&1 || true
+    $SUDO kmutil load -p /Library/Extensions/tun.kext >>"$kext_log" 2>&1 || true
+  fi
+
+  $SUDO /sbin/kextload /Library/Extensions/tap.kext >>"$kext_log" 2>&1 || true
+  $SUDO /sbin/kextload /Library/Extensions/tun.kext >>"$kext_log" 2>&1 || true
   $SUDO launchctl load -w /Library/LaunchDaemons/net.tunnelblick.tap.plist 2>/dev/null || true
   $SUDO launchctl load -w /Library/LaunchDaemons/net.tunnelblick.tun.plist 2>/dev/null || true
+  $SUDO launchctl kickstart -k system/net.tunnelblick.tap 2>/dev/null || true
+  $SUDO launchctl kickstart -k system/net.tunnelblick.tun 2>/dev/null || true
 
   if tap_is_ready; then
     echo "TAP support is ready."
   else
-    echo
-    echo "One more macOS approval step may be required:"
-    echo "1. Open System Settings > Privacy & Security."
-    echo "2. Allow the Tunnelblick TAP/TUN system extension if macOS asks."
-    echo "3. Restart the Mac if macOS asks, then run your n2n edge command again."
+    if [ -s "$kext_log" ]; then
+      echo
+      echo "macOS TAP/TUN load output:"
+      sed 's/^/  /' "$kext_log"
+    fi
+    print_tap_approval_instructions
   fi
 }
 
